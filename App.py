@@ -1,367 +1,335 @@
-import streamlit as st
-import numpy as np
+Import streamlit as st
 import pandas as pd
-from dataclasses import dataclass, field
-from typing import List, Dict, Optional
+import numpy as np
 
-st.set_page_config(page_title="BelkaFintech Makroekonomik Simülasyon", layout="wide")
+# 1. Sayfa Yapılandırması
+st.set_page_config(
+    page_title="Belkafintech | Secure Client Portal",
+    layout="wide",
+    initial_sidebar_state="collapsed"
+)
 
-st.title("🏛️ BelkaFintech: Dijital Arazi Mülkiyeti & Makro Simülasyon")
-st.markdown("TÜBİTAK Proje Sunumu ve Algoritmik Vergi Optimizasyon Paneli")
+# 2. Özel Kurumsal CSS Tasarımı
+st.markdown("""
+    <style>
+    .stApp {
+        background-color: #0d1117;
+        color: #e6edf3;
+    }
+    [data-testid="stSidebar"] {
+        background-color: #161b22;
+        border-right: 1px solid #30363d;
+    }
+    h1, h2, h3 {
+        color: #58a6ff !important;
+        font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+    }
+    .stButton>button {
+        background-color: #238636;
+        color: white;
+        border-radius: 6px;
+        font-weight: bold;
+        border: none;
+        padding: 10px 20px;
+        width: 100%;
+    }
+    .stButton>button:hover {
+        background-color: #2ea043;
+    }
+    </style>
+""", unsafe_allow_html=True)
 
-@dataclass
-class SimulationConfig:
-    seed: int = 42
-    num_agents: int = 20
-    periods: int = 30
-    initial_land_price: float = 1000.0
-    total_land_stock: int = 500
-    initial_land_per_owner: int = 2
-    initial_treasury: float = 100000.0
-    target_treasury: float = 80000.0
-    alpha: float = 0.15
-    max_price_change_pct: float = 0.30
-    initial_cash_scale: float = 15000.0
-    minimum_initial_cash: float = 5000.0
-    initial_tax_rate: float = 0.05
-    min_tax_rate: float = 0.01
-    max_tax_rate: float = 0.20
-    smoothing_factor: float = 0.25
-    max_subsidy_per_period: float = 5000.0
-    poverty_threshold: float = 8000.0
+# 3. 100 Kullanıcılı Veritabanı Sistemi
+KULLANICILAR = {
+    "Belkafintech": {
+        "sifre": "Mnvgt19892015",
+        "rol": "admin"
+    }
+}
 
-    def validate(self):
-        if self.num_agents <= 0 or self.periods <= 0:
-            raise ValueError("Ajan ve dönem sayısı pozitif olmalıdır.")
-        if self.total_land_stock <= 0:
-            raise ValueError("Arazi stoku pozitif olmalıdır.")
-        if self.initial_land_per_owner < 0:
-            raise ValueError("Başlangıç arazi tahsisi negatif olamaz.")
-        if not 0 < self.initial_land_price:
-            raise ValueError("Arazi fiyatı pozitif olmalıdır.")
-        if not 0 <= self.smoothing_factor <= 1:
-            raise ValueError("Smoothing factor 0-1 arasında olmalıdır.")
-        if not 0 < self.min_tax_rate <= self.max_tax_rate <= 1:
-            raise ValueError("Vergi oranı sınırları geçersiz.")
-        if not 0 <= self.initial_tax_rate <= 1:
-            raise ValueError("Başlangıç vergi oranı geçersiz.")
-        if self.max_subsidy_per_period < 0:
-            raise ValueError("Sübvansiyon bütçesi negatif olamaz.")
-        initial_owners = (self.num_agents + 1) // 2
-        initial_land = initial_owners * self.initial_land_per_owner
-        if initial_land > self.total_land_stock:
-            raise ValueError("Başlangıç arazi tahsisi toplam stoku aşıyor.")
+for i in range(1, 101):
+    KULLANICILAR[f"demo_giris{i}"] = {
+        "sifre": f"demo_sifre_{i}",
+        "rol": "musteri"
+    }
 
-class AgentRegistry:
-    def __init__(self):
-        self.ids = set()
+if "giris_yapildi" not in st.session_state:
+    st.session_state["giris_yapildi"] = False
+    st.session_state["aktif_kullanici"] = ""
+    st.session_state["rol"] = ""
 
-    def register(self, agent_id: int):
-        if not isinstance(agent_id, int) or isinstance(agent_id, bool):
-            raise ValueError("Ajan ID tam sayı olmalıdır.")
-        if agent_id <= 0:
-            raise ValueError("Ajan ID pozitif olmalıdır.")
-        if agent_id in self.ids:
-            raise ValueError("Tekrarlanan ajan ID.")
-        self.ids.add(agent_id)
+# 4. GİRİŞ EKRANI
+if not st.session_state["giris_yapildi"]:
+    col_l, col_r = st.columns([1.3, 1])
+    
+    with col_l:
+        try:
+            st.image("final_coached_logo.png", width=300)
+        except:
+            st.markdown("⚡📊📈")
+            
+        st.markdown("<h2 style='text-align: left; color: white; margin-top: 10px;'>BELKAFINTECH</h2>", unsafe_allow_html=True)
+        st.markdown("<h4 style='text-align: left; color: #a0aec0; margin-top: -15px;'>Ata Çakar</h4>", unsafe_allow_html=True)
+        st.markdown("---")
+        st.markdown("""
+            **Macroeconomic Simulation Platform**  
+            *Version 3.1 PRO | Secure Client Portal*  
+            
+            👋 Hoş geldiniz! Devam etmek için lütfen giriş yapınız.
+        """)
 
-@dataclass
-class Portfolio:
-    land_units: int = 0
-    purchase_cost: float = 0.0
-    assets_value: float = 0.0
-    realized_pnl: float = 0.0
+    with col_r:
+        st.markdown("### 🔐 Secure Client Portal")
+        kullanici_input = st.text_input("Kullanıcı Adı")
+        sifre_input = st.text_input("Şifre", type="password")
+        
+        if st.button("Giriş Yap"):
+            if not kullanici_input or not sifre_input:
+                st.warning("⚠️ Lütfen alanları doldurun.")
+            elif kullanici_input in KULLANICILAR:
+                hesap = KULLANICILAR[kullanici_input]
+                if hesap["sifre"] == sifre_input:
+                    st.session_state["giris_yapildi"] = True
+                    st.session_state["aktif_kullanici"] = kullanici_input
+                    st.session_state["rol"] = hesap["rol"]
+                    st.rerun()
+                else:
+                    st.error("❌ Hatalı şifre!")
+            else:
+                st.error("❌ Kullanıcı bulunamadı!")
 
-class EconomicAgent:
-    def __init__(self, agent_id: int, cash: float, risk_tolerance: float, registry: AgentRegistry):
-        if not np.isfinite(cash) or cash < 0:
-            raise ValueError("Nakit bakiyesi geçersiz.")
-        if not np.isfinite(risk_tolerance) or not 0 <= risk_tolerance <= 1:
-            raise ValueError("Risk toleransı 0-1 arasında olmalıdır.")
-        registry.register(agent_id)
-        self.agent_id = agent_id
-        self.cash = float(cash)
-        self.risk_tolerance = float(risk_tolerance)
-        self.portfolio = Portfolio()
-
-    def revalue(self, market_price: float):
-        if not np.isfinite(market_price) or market_price <= 0:
-            raise ValueError("Piyasa fiyatı geçersiz.")
-        self.portfolio.assets_value = self.portfolio.land_units * market_price
-
-    def decide(self, price: float, expected_roi: float):
-        required_roi = 1.0 + (0.20 * (1.0 - self.risk_tolerance))
-        if expected_roi >= required_roi:
-            return "BUY"
-        sell_threshold = required_roi * 0.80
-        if expected_roi < sell_threshold and self.portfolio.land_units > 0:
-            return "SELL"
-        return "HOLD"
-
-class LandMarketEngine:
-    def __init__(self, initial_price: float, total_land_stock: int, alpha: float, max_change: float):
-        if not np.isfinite(initial_price) or initial_price <= 0:
-            raise ValueError("Başlangıç fiyatı geçersiz.")
-        if total_land_stock <= 0:
-            raise ValueError("Arazi stoku pozitif olmalıdır.")
-        if not np.isfinite(alpha) or alpha < 0:
-            raise ValueError("Alpha geçersiz.")
-        if not np.isfinite(max_change) or not 0 < max_change <= 1:
-            raise ValueError("Fiyat değişim sınırı geçersiz.")
-        self.current_price = float(initial_price)
-        self.total_land_stock = total_land_stock
-        self.alpha = alpha
-        self.max_change = max_change
-        self.price_history = [self.current_price]
-        self.demand_history = []
-        self.supply_history = []
-
-    def update_price(self, demand: int, supply: int):
-        if demand < 0 or supply < 0:
-            raise ValueError("Talep ve arz negatif olamaz.")
-        if supply > self.total_land_stock:
-            raise ValueError("Arz toplam arazi stokunu aşıyor.")
-        if demand == 0 and supply == 0:
-            new_price = self.current_price
-        elif demand > 0 and supply == 0:
-            new_price = self.current_price * (1 + self.max_change)
-        else:
-            pressure = (demand - supply) / max(1, supply)
-            raw_price = self.current_price * (1 + self.alpha * pressure)
-            lower = self.current_price * (1 - self.max_change)
-            upper = self.current_price * (1 + self.max_change)
-            new_price = np.clip(raw_price, lower, upper)
-        if not np.isfinite(new_price):
-            raise RuntimeError("Piyasa fiyatı sayısal olarak geçersiz.")
-        self.current_price = round(max(1.0, float(new_price)), 4)
-        self.demand_history.append(demand)
-        self.supply_history.append(supply)
-        self.price_history.append(self.current_price)
-        return self.current_price
-
-class DynamicTaxAndBudgetEngine:
-    def __init__(self, config: SimulationConfig):
-        self.treasury = float(config.initial_treasury)
-        self.target = float(config.target_treasury)
-        self.tax_rate = config.initial_tax_rate
-        self.min_rate = config.min_tax_rate
-        self.max_rate = config.max_tax_rate
-        self.smoothing = config.smoothing_factor
-        self.max_subsidy = config.max_subsidy_per_period
-        self.budget_history = [self.treasury]
-        self.tax_history = [self.tax_rate]
-        self.revenue_history = []
-        self.subsidy_history = []
-
-    def optimize_tax_rate(self, recent_volume: int):
-        if recent_volume < 0:
-            raise ValueError("İşlem hacmi negatif olamaz.")
-        gap = (self.target - self.treasury) / max(1.0, self.target)
-        target_rate = 0.05 + 0.12 * gap
-        if recent_volume < 4:
-            target_rate *= 0.75
-        updated = self.tax_rate + self.smoothing * (target_rate - self.tax_rate)
-        self.tax_rate = round(float(np.clip(updated, self.min_rate, self.max_rate)), 4)
-        self.tax_history.append(self.tax_rate)
-        return self.tax_rate
-
-    def collect_tax(self, transaction_amount: float):
-        tax = transaction_amount * self.tax_rate
-        if not np.isfinite(tax) or tax < 0:
-            raise ValueError("Vergi tutarı geçersiz.")
-        self.treasury += tax
-        self.revenue_history.append(tax)
-        return tax
-
-    def distribute_subsidies(self, agents: List[EconomicAgent], poverty_threshold: float):
-        distributed = 0.0
-        if self.treasury > self.target * 0.40:
-            for agent in sorted(agents, key=lambda a: a.cash):
-                if distributed >= self.max_subsidy:
-                    break
-                if agent.cash >= poverty_threshold:
-                    continue
-                amount = min(500.0, self.max_subsidy - distributed, self.treasury)
-                if amount <= 0:
-                    break
-                agent.cash += amount
-                self.treasury -= amount
-                distributed += amount
-        self.budget_history.append(self.treasury)
-        self.subsidy_history.append(distributed)
-        return distributed
-
-def execute_atomic_trade(buyer: EconomicAgent, seller: EconomicAgent, price: float, market_price: float, tax_engine: DynamicTaxAndBudgetEngine):
-    if buyer is seller or price <= 0 or not np.isfinite(price) or seller.portfolio.land_units < 1:
-        return False
-    tax = price * tax_engine.tax_rate
-    total_cost = price + tax
-    if buyer.cash < total_cost:
-        return False
-    units = seller.portfolio.land_units
-    if units <= 0:
-        return False
-    average_cost = seller.portfolio.purchase_cost / units
-    buyer.cash -= total_cost
-    seller.cash += price
-    buyer.portfolio.land_units += 1
-    buyer.portfolio.purchase_cost += price
-    seller.portfolio.land_units -= 1
-    seller.portfolio.purchase_cost = max(0.0, seller.portfolio.purchase_cost - average_cost)
-    seller.portfolio.realized_pnl += price - average_cost
-    buyer.revalue(market_price)
-    seller.revalue(market_price)
-    tax_engine.collect_tax(price)
-    return True
-
-def calculate_gini(values):
-    values = np.asarray(values, dtype=float)
-    if values.size == 0:
-        return 0.0
-    values = np.maximum(values, 0.0)
-    total = values.sum()
-    if total <= 0:
-        return 0.0
-    values = np.sort(values)
-    n = len(values)
-    indexes = np.arange(1, n + 1)
-    gini = (2 * np.sum(indexes * values) / (n * total)) - ((n + 1) / n)
-    return float(np.clip(gini, 0.0, 1.0))
-
-def calculate_wealth(agents, treasury):
-    private_wealth = np.array([agent.cash + agent.portfolio.assets_value for agent in agents])
-    public_wealth = float(treasury)
-    return private_wealth, public_wealth
-
-class BelkaFintechSimulation:
-    def __init__(self, config: SimulationConfig):
-        config.validate()
-        self.config = config
-        self.rng = np.random.default_rng(config.seed)
-        self.registry = AgentRegistry()
-        self.market = LandMarketEngine(
-            initial_price=config.initial_land_price,
-            total_land_stock=config.total_land_stock,
-            alpha=config.alpha,
-            max_change=config.max_price_change_pct
-        )
-        self.tax_engine = DynamicTaxAndBudgetEngine(config)
-        self.agents = []
-        self.results = {
-            "period": [], "price": [], "demand": [], "supply": [],
-            "executed_volume": [], "tax_rate": [], "treasury": [],
-            "private_wealth": [], "total_system_wealth": [], "gini": [], "subsidies": []
-        }
-        self.initialize_agents()
-
-    def initialize_agents(self):
-        for i in range(1, self.config.num_agents + 1):
-            cash = self.rng.exponential(self.config.initial_cash_scale) + self.config.minimum_initial_cash
-            risk = self.rng.uniform(0.1, 0.9)
-            agent = EconomicAgent(agent_id=i, cash=float(cash), risk_tolerance=float(risk), registry=self.registry)
-            self.agents.append(agent)
-        for index, agent in enumerate(self.agents):
-            if index % 2 == 0:
-                units = self.config.initial_land_per_owner
-                agent.portfolio.land_units = units
-                agent.portfolio.purchase_cost = units * self.config.initial_land_price
-                agent.revalue(self.config.initial_land_price)
-
-    def run_period(self, period: int):
-        price = self.market.current_price
-        for agent in self.agents:
-            agent.revalue(price)
-        previous_volume = self.results["executed_volume"][-1] if self.results["executed_volume"] else 5
-        tax_rate = self.tax_engine.optimize_tax_rate(previous_volume)
-        buyers, sellers = [], []
-        for agent in self.agents:
-            expected_roi = 1.25 if agent.risk_tolerance > 0.5 else 1.05
-            action = agent.decide(price, expected_roi)
-            if action == "BUY":
-                buyers.append(agent)
-            elif action == "SELL":
-                sellers.append(agent)
-        desired_demand = len(buyers)
-        desired_supply = sum(agent.portfolio.land_units for agent in sellers)
-        if desired_supply > self.market.total_land_stock:
-            raise RuntimeError("Piyasaya sunulan arz stok sınırını aştı.")
-        seller_queue = []
-        for seller in sellers:
-            seller_queue.extend([seller] * seller.portfolio.land_units)
-        executed = 0
-        for buyer in buyers:
-            if not seller_queue:
-                break
-            seller = seller_queue.pop(0)
-            if execute_atomic_trade(buyer=buyer, seller=seller, price=price, market_price=price, tax_engine=self.tax_engine):
-                executed += 1
-        subsidy = self.tax_engine.distribute_subsidies(self.agents, self.config.poverty_threshold)
-        new_price = self.market.update_price(desired_demand, desired_supply)
-        for agent in self.agents:
-            agent.revalue(new_price)
-        private_wealth, public_wealth = calculate_wealth(self.agents, self.tax_engine.treasury)
-        gini = calculate_gini(private_wealth)
-        total_system_wealth = private_wealth.sum() + public_wealth
-        self.results["period"].append(period)
-        self.results["price"].append(new_price)
-        self.results["demand"].append(desired_demand)
-        self.results["supply"].append(desired_supply)
-        self.results["executed_volume"].append(executed)
-        self.results["tax_rate"].append(tax_rate)
-        self.results["treasury"].append(public_wealth)
-        self.results["private_wealth"].append(float(private_wealth.sum()))
-        self.results["total_system_wealth"].append(float(total_system_wealth))
-        self.results["gini"].append(gini)
-        self.results["subsidies"].append(subsidy)
-
-    def run(self):
-        for period in range(1, self.config.periods + 1):
-            self.run_period(period)
-        return self.results
-
-st.sidebar.header("⚙️ Simülasyon Parametreleri")
-num_agents = st.sidebar.slider("Ajan Sayısı", 10, 100, 20)
-periods = st.sidebar.slider("Dönem Sayısı", 10, 100, 30)
-initial_land_price = st.sidebar.number_input("Başlangıç Arazi Fiyatı (TL)", 500.0, 5000.0, 1000.0)
-total_land_stock = st.sidebar.number_input("Toplam Arazi Stoku", 100, 2000, 500)
-initial_treasury = st.sidebar.number_input("Başlangıç Kamu Hazinesi (TL)", 10000.0, 500000.0, 100000.0)
-target_treasury = st.sidebar.number_input("Hedef Hazine (TL)", 10000.0, 300000.0, 80000.0)
-
-if st.sidebar.button("🚀 Simülasyonu Başlat"):
-    config = SimulationConfig(
-        seed=42, num_agents=num_agents, periods=periods,
-        initial_land_price=initial_land_price, total_land_stock=int(total_land_stock),
-        initial_treasury=initial_treasury, target_treasury=target_treasury
-    )
-    simulation = BelkaFintechSimulation(config)
-    results = simulation.run()
-
-    df = pd.DataFrame({
-        "Dönem": results["period"],
-        "Arazi Fiyatı (TL)": results["price"],
-        "Kamu Hazinesi (TL)": results["treasury"],
-        "Gini Katsayısı": results["gini"],
-        "İşlem Hacmi": results["executed_volume"],
-        "Vergi Oranı": results["tax_rate"]
-    })
-
-    col1, col2, col3, col4 = st.columns(4)
-    col1.metric("Son Arazi Fiyatı", f"{results['price'][-1]:,.2f} TL", f"{((results['price'][-1]/initial_land_price)-1)*100:.1f}%")
-    col2.metric("Son Kamu Hazinesi", f"{results['treasury'][-1]:,.2f} TL")
-    col3.metric("Son Gini Katsayısı", f"{results['gini'][-1]:,.4f}")
-    col4.metric("Toplam İşlem", f"{sum(results['executed_volume'])} Adet")
-
-    st.subheader("📈 Fiyat ve Kamu Hazinesi Dinamikleri")
-    st.line_chart(df.set_index("Dönem")[["Arazi Fiyatı (TL)", "Kamu Hazinesi (TL)"]])
-
-    col_a, col_b = st.columns(2)
-    with col_a:
-        st.subheader("⚖️ Gelir Dağılımı Adaleti (Gini)")
-        st.line_chart(df.set_index("Dönem")["Gini Katsayısı"])
-    with col_b:
-        st.subheader("🔄 Dönemsel İşlem Hacmi")
-        st.bar_chart(df.set_index("Dönem")["İşlem Hacmi"])
-
-    st.success("TÜBİTAK Proje Simülasyonu başarıyla tamamlandı ve tüm motor entegre edildi!")
+# 5. GİRİŞ YAPILDIKTAN SONRA Tam Donanımlı Simülasyon Paneli
 else:
-    st.info("Sol panelden ayarları yapılandırıp **'Simülasyonu Başlat'** butonuna tıkla.")
+    c1, c2 = st.columns([4, 1])
+    with c1:
+        if st.session_state["rol"] == "admin":
+            st.success(f"👑 Kurucu Modu Aktif | Hoş geldin {st.session_state['aktif_kullanici']}")
+        else:
+            st.info(f"👤 Pilot Müşteri Paneli | Hesap: {st.session_state['aktif_kullanici']}")
+    with c2:
+        if st.button("Çıkış Yap"):
+            st.session_state["giris_yapildi"] = False
+            st.rerun()
+            
+    st.markdown("---")
+
+    st.title("🌐 Belkafintech: Ajan Tabanlı Makroekonomik Araştırma Prototipi")
+    st.markdown("### *Gelişmiş Dış Ticaret, Kademeli Vergi Modülü & Akademik Görsel Mimarisi*")
+
+    # Session State Tanımlamaları
+    if "num_agents" not in st.session_state: st.session_state.num_agents = 50
+    if "initial_capital" not in st.session_state: st.session_state.initial_capital = 100000.0
+    if "rounds" not in st.session_state: st.session_state.rounds = 30
+    if "policy_rate" not in st.session_state: st.session_state.policy_rate = 18.0
+    if "deposit_rate" not in st.session_state: st.session_state.deposit_rate = 12.0
+    if "lending_rate" not in st.session_state: st.session_state.lending_rate = 24.0
+
+    with st.sidebar:
+        st.header("⚙️ Piyasa ve Sistem Ayarları")
+        base_currency = st.selectbox("Görüntüleme Para Birimi", ["Türk Lirası (₺)", "Amerikan Doları ($)", "Euro (€)", "Belka Coin (BC)"])
+        currency_symbol = {"Türk Lirası (₺)": "₺", "Amerikan Doları ($)": "$", "Euro (€)": "€", "Belka Coin (BC)": "BC"}[base_currency]
+
+        num_agents = st.slider("Ajan Sayısı", 10, 200, st.session_state.num_agents, 10)
+        initial_capital = st.number_input(f"Başlangıç Sermayesi Ölçeği ({currency_symbol})", value=float(st.session_state.initial_capital), step=10000.0, min_value=1000.0)
+        rounds = st.slider("Simülasyon Tur Sayısı", 10, 100, st.session_state.rounds)
+
+        st.header("🏛️ Merkez Bankası & Maliye")
+        policy_rate_val = st.slider("Merkez Bankası Politika Faizi (%)", 0.0, 50.0, st.session_state.policy_rate)
+        deposit_rate_val = st.slider("Mevduat Getiri Faizi (%)", 0.0, 50.0, st.session_state.deposit_rate)
+        lending_rate_val = st.slider("Ticari Kredi Faiz Oranı (%)", 0.0, 60.0, st.session_state.lending_rate)
+        tax_system = st.selectbox("Vergi Mimarisi Modeli", ["Sabit Oranlı Vergi (%5)", "Kademeli Artan Oranlı Vergi (Max %25)", "İskandinav Model"])
+
+        st.header("🚀 Yatırım, Varlık Dönüşümü & Mülkiyet")
+        base_rd_rate_val = st.slider("Taban Ar-Ge Eğilimi (%)", 0.0, 15.0, 3.0)
+        fx_allocation_val = st.slider("Döviz Varlık Sepeti Oranı (%)", 0.0, 100.0, 35.0)
+        staking_apy_val = st.slider("DeFi / Staking Getiri Oranı (APY %)", 0.0, 40.0, 12.0)
+        total_virtual_lands = st.slider("Sanal Arsa Arzı (Adet)", 10, 500, 100)
+        monte_carlo_runs = st.slider("Monte Carlo Senaryo Tekrar Sayısı", 5, 50, 10, 5)
+
+        st.markdown("---")
+        with st.form("simulation_form"):
+            submitted = st.form_submit_button("🚀 Simülasyonu Başlat")
+
+        st.markdown("---")
+        st.subheader("👑 Proje Künyesi & Mimari")
+        st.markdown("**Kurucu & Geliştirici:** Ata Çakar")
+        st.markdown("**Proje:** Akademik Makroekonomik Prototip")
+
+    policy_rate = policy_rate_val / 100.0
+    deposit_rate = deposit_rate_val / 100.0
+    lending_rate = lending_rate_val / 100.0
+    base_rd_rate = base_rd_rate_val / 100.0
+    fx_allocation = fx_allocation_val / 100.0
+    staking_apy = staking_apy_val / 100.0
+
+    def calculate_safe_gini_and_hhi(gross_assets):
+        valid_assets = gross_assets[gross_assets > 0]
+        if len(valid_assets) == 0 or np.sum(valid_assets) <= 0:
+            return np.nan, np.nan, np.nan
+        total_sum = np.sum(valid_assets)
+        shares = valid_assets / total_sum
+        hhi = float(np.sum((shares * 100.0) ** 2))
+        top_5_share = float(np.sum(np.sort(shares)[-5:]) * 100.0) if len(shares) >= 5 else 100.0
+        array = np.sort(valid_assets)
+        n = array.shape[0]
+        index = np.arange(1, n + 1)
+        gini = float((np.sum((2 * index - n - 1) * array)) / (n * total_sum))
+        return hhi, top_5_share, gini
+
+    def run_methodological_prototype(seed_value, num_agents, initial_capital, rounds, policy_rate, deposit_rate, lending_rate, tax_system, base_rd_rate, fx_allocation, staking_apy, total_virtual_lands):
+        np.random.seed(seed_value)
+        local_wealth = np.random.exponential(scale=initial_capital * (1.0 - fx_allocation), size=num_agents)
+        fx_wealth = np.random.exponential(scale=initial_capital * fx_allocation, size=num_agents)
+        defi_staking_pool = np.zeros(num_agents)
+        stock_portfolio_value = np.zeros(num_agents)
+        lands_owned = np.zeros(num_agents, dtype=int)
+        active_status = np.ones(num_agents, dtype=bool)
+        employment_status = np.ones(num_agents, dtype=bool)
+        
+        exchange_rate = 1.0
+        state_treasury = 10000.0  # Başlangıç devlet kasası rezervi
+        land_price = initial_capital * 0.1
+        trade_balance_accumulated = 0.0
+        credit_principal = np.random.uniform(initial_capital * 0.1, initial_capital * 0.3, size=num_agents)
+        unpaid_interest_liability = np.zeros(num_agents)
+        
+        history = []
+        events_log = []
+
+        for r in range(rounds):
+            if np.sum(active_status) == 0:
+                break
+
+            event_roll = np.random.rand()
+            current_event = "Stabil Piyasa Koşulları"
+            trade_shock = np.random.normal(0.0, initial_capital * 500.0)
+
+            if event_roll < 0.07:
+                current_event = "⚠️ Likidite Krizi & İstihdam Daralması"
+                trade_shock = -initial_capital * 2000.0
+                events_log.append(f"Tur {r+1}: {current_event}")
+            elif event_roll < 0.14:
+                current_event = "💱 Kur Şoku ve Dış Ticaret Açığı"
+                exchange_rate *= (1.0 + (policy_rate * 0.1))
+                trade_shock = -initial_capital * 5000.0
+                events_log.append(f"Tur {r+1}: {current_event}")
+            elif event_roll < 0.20:
+                current_event = "💡 Teknoloji Patlaması ve İhracat Fazlası"
+                trade_shock = initial_capital * 4000.0
+                events_log.append(f"Tur {r+1}: {current_event}")
+
+            trade_balance_accumulated += trade_shock
+            if trade_shock < 0:
+                exchange_rate *= 1.02
+
+            local_wealth += defi_staking_pool * (staking_apy / 12.0)
+            local_wealth += np.where(employment_status, initial_capital * 0.04, initial_capital * 0.005) * active_status
+            local_wealth += local_wealth * (deposit_rate / 12.0)
+
+            # AKTİF VERGİ TOPLAMA VE DEVLET HAZİNESİ AKTARIMI
+            gross_assets_pre_tax = local_wealth + (fx_wealth * exchange_rate) + defi_staking_pool + stock_portfolio_value + (lands_owned * land_price)
+            if np.any(active_status):
+                if "Kademeli" in tax_system:
+                    tax_rate = 0.12
+                elif "İskandinav" in tax_system:
+                    tax_rate = 0.18
+                else:
+                    tax_rate = 0.05
+                
+                collected_taxes = np.sum(local_wealth * tax_rate * active_status)
+                local_wealth = np.maximum(0, local_wealth * (1.0 - (tax_rate * active_status)))
+                state_treasury += collected_taxes  # Devlet rezervi her tur toplanan vergiyle artar!
+
+            # Sanal Arsa İşlemleri
+            available_lands = total_virtual_lands - np.sum(lands_owned)
+            if available_lands > 0:
+                buyers = (local_wealth >= land_price) & active_status
+                buyer_indices = np.where(buyers)[0]
+                if len(buyer_indices) > 0:
+                    lands_to_buy = min(int(available_lands), int(len(buyer_indices)))
+                    selected_buyers = np.random.choice(buyer_indices, size=lands_to_buy, replace=False)
+                    local_wealth[selected_buyers] -= land_price
+                    lands_owned[selected_buyers] += 1
+                    land_price *= 1.05
+
+            gross_assets_final = local_wealth + (fx_wealth * exchange_rate) + defi_staking_pool + stock_portfolio_value + (lands_owned * land_price)
+            net_wealth_final = gross_assets_final - credit_principal - unpaid_interest_liability
+            active_net = net_wealth_final[active_status]
+
+            hhi, top_5_share, gini = calculate_safe_gini_and_hhi(gross_assets_final[active_status])
+            unemployment_rate = float(1.0 - (np.sum(employment_status[active_status]) / max(1, np.sum(active_status))))
+
+            history.append({
+                "Tur": r + 1,
+                "Brüt Varlık Yoğunlaşması HHI": hhi,
+                "Top 5 Brüt Varlık Payı (%)": top_5_share,
+                "Gini Katsayısı (Brüt Varlıklar)": gini,
+                "İşsizlik Oranı (%)": unemployment_rate * 100.0,
+                "Model Enflasyon Vekili (%)": float(np.random.uniform(5.0, 20.0) + (policy_rate * 10.0)),
+                "Dış Ticaret Dengesi": trade_balance_accumulated,
+                "Döviz Kuru": exchange_rate,
+                "Devlet Rezervi": state_treasury,
+                "Arsa Fiyatı": land_price,
+                "Aktif Ajan Sayısı": int(np.sum(active_status)),
+                "Toplam Piyasa Net Serveti": float(np.sum(active_net) if len(active_net) > 0 else 0.0)
+            })
+
+        return pd.DataFrame(history), events_log
+
+    if submitted:
+        df_history, events_log = run_methodological_prototype(
+            42, num_agents, initial_capital, rounds, policy_rate, deposit_rate, lending_rate, tax_system, 
+            base_rd_rate, fx_allocation, staking_apy, total_virtual_lands
+        )
+
+        last_row = df_history.iloc[-1]
+        m1, m2, m3, m4 = st.columns(4)
+        m1.metric("Brüt Varlık Yoğunlaşması HHI", f"{last_row['Brüt Varlık Yoğunlaşması HHI']:.1f}" if not np.isnan(last_row['Brüt Varlık Yoğunlaşması HHI']) else "N/A")
+        m2.metric("Gini (Brüt Varlıklar)", f"{last_row['Gini Katsayısı (Brüt Varlıklar)']:.3f}" if not np.isnan(last_row['Gini Katsayısı (Brüt Varlıklar)']) else "N/A")
+        m3.metric("Toplam Net Servet", f"{currency_symbol}{last_row['Toplam Piyasa Net Serveti']:,.0f}")
+        m4.metric("Devlet Rezervi", f"{currency_symbol}{last_row['Devlet Rezervi']:,.0f}")
+
+        st.markdown("---")
+        st.subheader("📊 1. Brüt Konsolidasyon & Eşitsizlik Analitiği")
+        col1, col2 = st.columns(2)
+        with col1:
+            st.markdown("**Brüt Varlık Yoğunlaşması HHI & Gini Eğrisi**")
+            st.line_chart(df_history.set_index("Tur")[["Brüt Varlık Yoğunlaşması HHI", "Gini Katsayısı (Brüt Varlıklar)"]])
+        with col2:
+            st.markdown("**Top 5 Brüt Varlık Payı (%) & Aktif Oyuncu Sayısı**")
+            st.line_chart(df_history.set_index("Tur")[["Top 5 Brüt Varlık Payı (%)", "Aktif Ajan Sayısı"]])
+
+        st.markdown("---")
+        st.subheader("📉 2. Makroekonomik Göstergeler & Dış Ticaret Dengesi")
+        col3, col4 = st.columns(2)
+        with col3:
+            st.markdown("**Model Enflasyon Vekili (%) & İşsizlik (%)**")
+            st.line_chart(df_history.set_index("Tur")[["Model Enflasyon Vekili (%)", "İşsizlik Oranı (%)"]])
+        with col4:
+            st.markdown("**Dış Ticaret Dengesi & Döviz Kuru**")
+            st.line_chart(df_history.set_index("Tur")[["Dış Ticaret Dengesi", "Döviz Kuru"]])
+
+        st.markdown("---")
+        st.subheader("📈 3. Arsa Piyasası & Devlet Rezerv Dinamikleri")
+        col5, col6 = st.columns(2)
+        with col5:
+            st.markdown("**Sanal Arsa Fiyatı Trendi**")
+            st.line_chart(df_history.set_index("Tur")["Arsa Fiyatı"])
+        with col6:
+            st.markdown("**Devlet Rezervi Birikimi (Vergi Gelirleri)**")
+            st.line_chart(df_history.set_index("Tur")["Devlet Rezervi"])
+
+        if events_log:
+            st.subheader("📜 Risk ve Olay Günlüğü")
+            for log in events_log:
+                st.warning(log)
+
+        st.markdown("---")
+        st.download_button(
+            label="📥 Akademik Simülasyon Raporunu İndir (CSV)",
+            data=df_history.to_csv(index=False).encode('utf-8'),
+            file_name="belkafintech_akademik_simulasyon_raporu.csv",
+            mime="text/csv",
+        )
+    else:
+        st.info("Simülasyonu başlatmak için sol taraftaki menüden **🚀 Simülasyonu Başlat** butonuna tıklayın.")
