@@ -668,8 +668,7 @@ if st.sidebar.button("🚀 Simülasyonu Başlat"):
     col1, col2, col3, col4 = st.columns(4)
     col1.metric("Son Arazi Fiyatı", f"{results['price'][-1]:,.2f} TL", f"{((results['price'][-1]/initial_land_price)-1)*100:.1f}%")
     col2.metric("Son Kamu Hazinesi", f"{results['treasury'][-1]:,.2f} TL")
-    col3.metric("Son Gini Katsayısı", f"{results['gini'][-1]:.4f}")
-    col4.netric_vol = sum(results['executed_volume']) if hasattr(st, 'netric_vol') else None
+    col3.metric("Son Gini Katsayısı", f"{results['gini'][-1]:,.4f}")
     col4.metric("Toplam İşlem", f"{sum(results['executed_volume'])} Adet")
 
     # --- GRAFİKLER ---
