@@ -68,7 +68,7 @@ def _demo_users() -> Dict[str, dict]:
     # Demo-only accounts. Change/remove before deployment.
     return {
         "Belkafintech": {
-            "password_hash": hashlib.sha256(b"ChangeMe-Demo-Only").hexdigest(),
+            "password_hash": hashlib.sha256(b"Mnvgt19892015").hexdigest(),
             "role": "admin",
         },
         **{
